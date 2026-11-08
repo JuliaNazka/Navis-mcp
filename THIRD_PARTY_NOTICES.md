@@ -19,7 +19,7 @@ Navis-mcp junta dois projetos open-source num único servidor MCP. Cada um conti
 - Copyright 2026 Khoa Le
 - Licença: Apache 2.0, texto completo em [`third_party/nwd-mcp/LICENSE`](third_party/nwd-mcp/LICENSE). O projeto não traz arquivo NOTICE.
 - Onde está aqui:
-  - `addins/nwd/shared/`: código do plug-in, sem alterações.
+  - `addins/nwd/shared/` e `addins/nwd/plugin-navis25/`: código e projeto 2025 do plug-in, sem alterações.
   - `addins/nwd/plugin-navis27/`: projeto do plug-in para o Navisworks 2027. O `plugin-navis27` da v1.0.0 não compilava: referenciava uma `Autodesk.Navisworks.Api.Controls.dll` que não existe e não tinha o pacote `IsExternalInit`. Este projeto foi refeito a partir do `plugin-navis25`, mudando só o ano, a constante e a pasta da API.
   - `server/naviscoord/nwd/`: **trabalho derivado**. O servidor .NET 8 (`src/server/`) foi reescrito em Python para rodar no mesmo processo do NavisCoord.
 - O que mudou (Apache 2.0, seção 4(b)):
@@ -29,7 +29,7 @@ Navis-mcp junta dois projetos open-source num único servidor MCP. Cada um conti
   - `Bake/*.cs`, `Handlers/*.cs` e os auxiliares de ToolBaker/Security usados pelo servidor viraram `bake.py`, com o mesmo `bake.db`. A validação do registro e o mascaramento de segredos ficaram simplificados.
   - `Tools/*.cs` viraram `tools.py`. Nomes, parâmetros, padrões, descrições (`descriptions.py`, copiadas literalmente) e anotações são os mesmos.
   - `ReleaseUpdateCheck` e o log de chamadas do servidor não foram portados.
-- `build.ps1` gera um `PackageContents.xml` só para o Navisworks 2027 (série `Nw24`).
+- `build.ps1` gera um `PackageContents.xml` com um componente por ano: 2025 (série `Nw22`) e 2027 (série `Nw24`).
 
 ## Autodesk
 
