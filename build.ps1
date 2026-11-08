@@ -78,6 +78,8 @@ Run $venvPy -m PyInstaller --noconfirm --clean --onedir --console --name navis-m
 $ncProj = Join-Path $root 'addins\NavisCoord.Addin\NavisCoord.Addin.csproj'
 $bundle = Join-Path $out 'addins\Bimwright.Nwd.bundle'
 $components = @()
+$ncBundle = Join-Path $out 'addins\NavisCoord.bundle'
+$ncComponents = @()
 foreach ($y in $built) {
     $nwDir = Join-Path $AutodeskDir "Navisworks Manage $y"
     $yy = $y % 100
@@ -86,13 +88,21 @@ foreach ($y in $built) {
     $ncBin = Join-Path $root "addins\NavisCoord.Addin\bin\Release\$y\"
     Run dotnet build $ncProj -c Release -nologo -v minimal "-p:NavisworksYear=$y" "-p:NavisworksDir=$nwDir" `
         "-p:OutDir=$ncBin" "-p:IntermediateOutputPath=obj\Release\$y\"
-    $ncOut = Join-Path $out "addins\NavisCoord\$y"
+    # Shipped as an ApplicationPlugins bundle, like nwd: Navisworks 2027 no longer loads add-ins from
+    # %APPDATA%\Autodesk\Navisworks Manage <year>\Plugins (verified live), and the bundle works in both years.
+    $ncOut = Join-Path $ncBundle "Contents\$y"
     New-Item -ItemType Directory -Force (Join-Path $ncOut 'en-US') | Out-Null
     foreach ($f in 'NavisCoord.dll', 'NavisCoordRibbon.xaml', 'nc_16.png', 'nc_32.png') { Copy-Item (Join-Path $ncBin $f) $ncOut }
     Copy-Item (Join-Path $ncBin 'en-US\NavisCoordRibbon.xaml') (Join-Path $ncOut 'en-US')
     Copy-Item (Join-Path $root 'profiles\example-profile.json') $ncOut
     Copy-Item (Join-Path $root 'third_party\naviscoord\LICENSE') $ncOut
     Copy-Item (Join-Path $root 'third_party\naviscoord\NOTICE') $ncOut
+    $ncComponents += @"
+  <Components>
+    <RuntimeRequirements OS="Win64" Platform="NAVMAN" SeriesMin="$($series[$y])" SeriesMax="$($series[$y])" />
+    <ComponentEntry AppName="NavisCoord" AppType="ManagedPlugin" ModuleName="./Contents/$y/NavisCoord.dll" />
+  </Components>
+"@
 
     Step "Plug-in nwd (Navisworks Manage $y)"
     $nwProj = Join-Path $root "addins\nwd\plugin-navis$yy\Bimwright.Nwd.Plugin.Navis$yy.csproj"
@@ -115,6 +125,13 @@ $($components -join "`n")
 </ApplicationPackage>
 "@ | Set-Content -Encoding UTF8 (Join-Path $bundle 'PackageContents.xml')
 Copy-Item (Join-Path $root 'third_party\nwd-mcp\LICENSE') $bundle
+@"
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="1.1.2" AutodeskProduct="Navisworks" Name="NavisCoord" Description="NavisCoord add-in (Navis-mcp build) for Autodesk Navisworks Manage $($built -join ', ')" ProductCode="{6F1C2A4E-8B3D-4E7A-9C51-2D8F0B6A7E13}">
+  <CompanyDetails Name="Horizun Group (built by Navis-mcp)" />
+$($ncComponents -join "`n")
+</ApplicationPackage>
+"@ | Set-Content -Encoding UTF8 (Join-Path $ncBundle 'PackageContents.xml')
 
 Step 'Instalador, licenças e README'
 foreach ($f in 'install.ps1', 'uninstall.ps1', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md') { Copy-Item (Join-Path $root $f) $out }

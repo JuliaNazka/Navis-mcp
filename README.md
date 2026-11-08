@@ -40,7 +40,7 @@ Isso instala:
 
 | O quê | Onde |
 |---|---|
-| add-in NavisCoord | `%APPDATA%\Autodesk\Navisworks Manage <ano>\Plugins\NavisCoord` (2025 e 2027) |
+| add-in NavisCoord | `%APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle` (2025 e 2027; o NW 2027 não carrega mais add-ins da pasta `Plugins` por usuário) |
 | plug-in nwd | `%APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle` |
 | servidor MCP | `%LOCALAPPDATA%\Navis-mcp\server\navis-mcp.exe` |
 

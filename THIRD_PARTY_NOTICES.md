@@ -21,6 +21,7 @@ O `LICENSE` da raiz não substitui as licenças originais, que valem para as par
 - O que mudou:
   - `server/naviscoord/mcp_server.py`: o servidor se apresenta como `navis-mcp` com a versão do Navis-mcp, e `main()` chama `unified.configure()` antes de rodar. As ferramentas `navis_*` não mudaram.
   - **Port para o Navisworks 2027** (o NavisCoord oficial suporta 2024–2026): no 2027 a Autodesk passou a organizar os testes de clash em pastas. `DocumentClashTests.Tests` saiu, e `TestsAddCopy`/`TestsRemove` passaram a receber a pasta-mãe. O arquivo novo `addins/NavisCoord.Addin/ClashCompat.cs` concentra essa API: no 2027 ele percorre `Value.TestsRoot` e as subpastas, e nas versões antigas usa a lista plana. Os 31 pontos que usavam `TestsData.Tests`, `TestsAddCopy` e `TestsRemove` passaram a chamar o `ClashCompat`. O `.csproj` ganhou `NavisworksYear` (padrão 2027) e a constante `NAVIS2027`.
+  - **Distribuição como bundle**: o add-in vai em `%APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle`, com um componente por ano, e não mais em `%APPDATA%\Autodesk\Navisworks Manage <ano>\Plugins\NavisCoord`. Em teste ao vivo, o Navisworks 2027 não carregou o add-in a partir da pasta `Plugins` e carregou a partir do bundle.
   - Testes, scripts de release e plugins de marketplace do NavisCoord não foram copiados.
 
 ## nwd-mcp — Apache License 2.0

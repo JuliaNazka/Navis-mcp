@@ -1,7 +1,8 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Removes what install.ps1 put in place (add-ins for every year, and the server).
+    Removes what install.ps1 put in place (both bundles and the server), plus any legacy
+    %APPDATA%\Autodesk\Navisworks Manage <year>\Plugins\NavisCoord copy.
     Backups in %LOCALAPPDATA%\Navis-mcp\backup are left alone.
 #>
 [CmdletBinding(SupportsShouldProcess)]
@@ -13,6 +14,7 @@ if ($nwOpen) { throw "Feche o Navisworks (PID $($nwOpen.Id -join ', ')) e rode d
 
 $paths = @(Get-ChildItem (Join-Path $env:APPDATA 'Autodesk') -Directory -Filter 'Navisworks Manage *' -ErrorAction SilentlyContinue |
     ForEach-Object { Join-Path $_.FullName 'Plugins\NavisCoord' })
+$paths += Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\NavisCoord.bundle'
 $paths += Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle'
 $paths += Join-Path $env:LOCALAPPDATA 'Navis-mcp\server'
 

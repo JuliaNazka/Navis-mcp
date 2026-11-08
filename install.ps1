@@ -4,14 +4,15 @@
     Installs Navis-mcp (from the dist folder or the release ZIP) for the Navisworks Manage years in the package.
 
 .DESCRIPTION
-    - NavisCoord add-in -> %APPDATA%\Autodesk\Navisworks Manage <year>\Plugins\NavisCoord   (one per year)
-    - nwd plug-in       -> %APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle     (one bundle, all years)
+    - NavisCoord add-in -> %APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle       (one component per year)
+    - nwd plug-in       -> %APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle   (one component per year)
     - MCP server        -> %LOCALAPPDATA%\Navis-mcp\server\navis-mcp.exe
-    Replaced folders are moved to %LOCALAPPDATA%\Navis-mcp\backup\<timestamp>\ (outside the folders
-    Navisworks scans, so an old copy can never load) until you delete them.
+    Older NavisCoord copies under %APPDATA%\Autodesk\Navisworks Manage <year>\Plugins\NavisCoord are moved
+    out so the add-in never loads twice. Replaced folders go to %LOCALAPPDATA%\Navis-mcp\backup\<timestamp>\
+    (outside the folders Navisworks scans) until you delete them.
     With -RegisterClaudeCode it also runs `claude mcp add` (user scope) when the CLI is on PATH.
 
-    Every Navisworks Manage year in the package must be closed.
+    Navisworks Manage must be closed.
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -22,22 +23,30 @@ param(
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $stamp = Get-Date -Format 'yyyyMMddHHmmss'
+$backup = Join-Path $env:LOCALAPPDATA "Navis-mcp\backup\$stamp"
 
-$years = @(Get-ChildItem (Join-Path $here 'addins\NavisCoord') -Directory | Where-Object { $_.Name -match '^\d{4}$' } | ForEach-Object { $_.Name })
-if (-not $years) { throw "Pacote sem add-ins (rode build.ps1 primeiro)." }
-
-$nwOpen = Get-Process roamer -ErrorAction SilentlyContinue | Where-Object {
-    $path = try { $_.Path } catch { '' }
-    $years | Where-Object { $path -like "*Navisworks Manage $_*" }
-}
+$nwOpen = Get-Process roamer -ErrorAction SilentlyContinue
 if ($nwOpen) { throw "Feche o Navisworks (PID $($nwOpen.Id -join ', ')) e rode de novo." }
 
-$targets = @()
-foreach ($y in $years) {
-    $targets += @{ From = "addins\NavisCoord\$y"; To = Join-Path $env:APPDATA "Autodesk\Navisworks Manage $y\Plugins\NavisCoord" }
+function Move-ToBackup([string]$path, [string]$label) {
+    New-Item -ItemType Directory -Force $backup | Out-Null
+    Move-Item $path (Join-Path $backup $label)
+    Write-Host "backup: $(Join-Path $backup $label)"
 }
-$targets += @{ From = 'addins\Bimwright.Nwd.bundle'; To = Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle' }
-$targets += @{ From = 'server\navis-mcp'; To = Join-Path $env:LOCALAPPDATA 'Navis-mcp\server' }
+
+# Legacy per-year Plugins copies (Navis-mcp < 1.0.1 and the official NavisCoord installer).
+Get-ChildItem (Join-Path $env:APPDATA 'Autodesk') -Directory -Filter 'Navisworks Manage *' -ErrorAction SilentlyContinue | ForEach-Object {
+    $legacy = Join-Path $_.FullName 'Plugins\NavisCoord'
+    if ((Test-Path $legacy) -and $PSCmdlet.ShouldProcess($legacy, 'mover para backup')) {
+        Move-ToBackup $legacy ("NavisCoord-Plugins-" + ($_.Name -replace '\D', ''))
+    }
+}
+
+$targets = @(
+    @{ From = 'addins\NavisCoord.bundle'; To = Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\NavisCoord.bundle' },
+    @{ From = 'addins\Bimwright.Nwd.bundle'; To = Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle' },
+    @{ From = 'server\navis-mcp'; To = Join-Path $env:LOCALAPPDATA 'Navis-mcp\server' }
+)
 
 $i = 0
 foreach ($t in $targets) {
@@ -49,18 +58,14 @@ foreach ($t in $targets) {
         $stage = Join-Path $env:LOCALAPPDATA "Navis-mcp\staging-$stamp\$i"
         New-Item -ItemType Directory -Force (Split-Path $stage -Parent) | Out-Null
         Copy-Item $src $stage -Recurse
-        if (Test-Path $t.To) {
-            $backup = Join-Path $env:LOCALAPPDATA "Navis-mcp\backup\$stamp"
-            New-Item -ItemType Directory -Force $backup | Out-Null
-            Move-Item $t.To (Join-Path $backup ("$i-" + (Split-Path $t.To -Leaf)))
-            Write-Host "backup: $backup"
-        }
+        if (Test-Path $t.To) { Move-ToBackup $t.To ("$i-" + (Split-Path $t.To -Leaf)) }
         Move-Item $stage $t.To
         Write-Host "instalado: $($t.To)" -ForegroundColor Green
     }
 }
 Remove-Item (Join-Path $env:LOCALAPPDATA "Navis-mcp\staging-$stamp") -Recurse -Force -ErrorAction SilentlyContinue
 
+$years = @(Get-ChildItem (Join-Path $here 'addins\NavisCoord.bundle\Contents') -Directory | ForEach-Object { $_.Name })
 $exe = Join-Path $env:LOCALAPPDATA 'Navis-mcp\server\navis-mcp.exe'
 Write-Host "`nServidor MCP: $exe"
 if ($RegisterClaudeCode) {
