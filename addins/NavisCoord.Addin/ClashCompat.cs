@@ -35,7 +35,7 @@ namespace NavisCoord
 #if NAVIS2027
             data.TestsAddCopy(data.Value.TestsRoot, item);
 #else
-            data.TestsAddCopy(item);
+            data.TestsAddCopy((ClashTest)item);
 #endif
         }
 
@@ -44,7 +44,7 @@ namespace NavisCoord
 #if NAVIS2027
             data.TestsRemove(item.Parent ?? data.Value.TestsRoot, item);
 #else
-            data.TestsRemove(item);
+            data.TestsRemove((ClashTest)item);
 #endif
         }
 

@@ -5,20 +5,23 @@
 
 .DESCRIPTION
     1. Python server (NavisCoord navis_* + nwd_* port) -> one standalone navis-mcp.exe (PyInstaller, onedir)
-    2. NavisCoord add-in for Navisworks Manage 2027 (net48)
-    3. nwd plug-in for Navisworks Manage 2027 (net48), packaged as an ApplicationPlugins bundle
+    2. NavisCoord add-in for each Navisworks Manage year in -Years (net48)
+    3. nwd plug-in for each year, packaged as one ApplicationPlugins bundle
     4. Installer, licences and README next to them
 
-    Needs: Windows, Navisworks Manage 2027 installed (its API DLLs are referenced, never copied),
-    .NET SDK 8+, and uv (https://docs.astral.sh/uv/) to create the Python build environment.
+    Needs: Windows, the Navisworks Manage years to build installed (their API DLLs are referenced,
+    never copied), .NET SDK 8+, and uv (https://docs.astral.sh/uv/) for the Python build environment.
+    A year that is not installed is skipped with a warning.
 
 .EXAMPLE
     .\build.ps1
-    .\build.ps1 -NavisworksDir "D:\Autodesk\Navisworks Manage 2027" -SkipTests
+    .\build.ps1 -Years 2027 -SkipTests
+    .\build.ps1 -AutodeskDir "D:\Autodesk"
 #>
 [CmdletBinding()]
 param(
-    [string]$NavisworksDir = 'C:\Program Files\Autodesk\Navisworks Manage 2027',
+    [int[]]$Years = @(2025, 2027),
+    [string]$AutodeskDir = 'C:\Program Files\Autodesk',
     [string]$Python = '3.13',
     [switch]$SkipTests
 )
@@ -37,9 +40,17 @@ function Run($exe) {
     if ($LASTEXITCODE -ne 0) { throw "falhou ($LASTEXITCODE): $exe $($argList -join ' ')" }
 }
 
-if (-not (Test-Path (Join-Path $NavisworksDir 'Autodesk.Navisworks.Api.dll'))) {
-    throw "Navisworks Manage 2027 não encontrado em '$NavisworksDir'. Use -NavisworksDir."
+# Autodesk's bundle series per year (nwd-mcp's PackageContents template).
+$series = @{ 2022 = 'Nw19'; 2023 = 'Nw20'; 2024 = 'Nw21'; 2025 = 'Nw22'; 2026 = 'Nw23'; 2027 = 'Nw24' }
+$built = @()
+foreach ($y in $Years) {
+    $dir = Join-Path $AutodeskDir "Navisworks Manage $y"
+    if (-not $series.ContainsKey($y)) { throw "Ano não suportado: $y" }
+    if (-not (Test-Path (Join-Path $root "addins\nwd\plugin-navis$($y % 100)"))) { throw "Falta addins\nwd\plugin-navis$($y % 100)" }
+    if (Test-Path (Join-Path $dir 'Autodesk.Navisworks.Api.dll')) { $built += $y }
+    else { Write-Warning "Navisworks Manage $y não encontrado em '$dir': pulando esse ano." }
 }
+if (-not $built) { throw "Nenhum Navisworks Manage de $($Years -join ', ') instalado em '$AutodeskDir'." }
 
 Step 'Ambiente Python (uv + dependências travadas por hash)'
 if (-not (Test-Path $venvPy)) { Run uv venv (Join-Path $root '.venv') --python $Python }
@@ -64,36 +75,45 @@ Run $venvPy -m PyInstaller --noconfirm --clean --onedir --console --name navis-m
     --collect-data reportlab --collect-submodules PIL --collect-submodules naviscoord `
     --copy-metadata mcp (Join-Path $root 'scripts\frozen_entry.py')
 
-Step 'Add-in NavisCoord (Navisworks Manage 2027)'
 $ncProj = Join-Path $root 'addins\NavisCoord.Addin\NavisCoord.Addin.csproj'
-Run dotnet build $ncProj -c Release -nologo -v minimal '-p:NavisworksYear=2027' "-p:NavisworksDir=$NavisworksDir"
-$ncBin = Join-Path $root 'addins\NavisCoord.Addin\bin\Release'
-$ncOut = Join-Path $out 'addins\NavisCoord'
-New-Item -ItemType Directory -Force (Join-Path $ncOut 'en-US') | Out-Null
-foreach ($f in 'NavisCoord.dll', 'NavisCoordRibbon.xaml', 'nc_16.png', 'nc_32.png') { Copy-Item (Join-Path $ncBin $f) $ncOut }
-Copy-Item (Join-Path $ncBin 'en-US\NavisCoordRibbon.xaml') (Join-Path $ncOut 'en-US')
-Copy-Item (Join-Path $root 'profiles\example-profile.json') $ncOut
-Copy-Item (Join-Path $root 'third_party\naviscoord\LICENSE') $ncOut
-Copy-Item (Join-Path $root 'third_party\naviscoord\NOTICE') $ncOut
-
-Step 'Plug-in nwd (Navisworks Manage 2027)'
-$nwProj = Join-Path $root 'addins\nwd\plugin-navis27\Bimwright.Nwd.Plugin.Navis27.csproj'
-Run dotnet build $nwProj -c Release -nologo -v minimal "-p:NavisworksInstallDir=$NavisworksDir"
-$nwBin = Join-Path $root 'addins\nwd\plugin-navis27\bin\Release\net48'
 $bundle = Join-Path $out 'addins\Bimwright.Nwd.bundle'
-New-Item -ItemType Directory -Force (Join-Path $bundle 'Contents\2027') | Out-Null
-Get-ChildItem $nwBin -File | Where-Object { $_.Extension -in '.dll', '.pdb' } | Copy-Item -Destination (Join-Path $bundle 'Contents\2027')
-# Nw24 = Navisworks 2027 (Nw22 = 2025), as in nwd-mcp's PackageContents template.
-@'
-<?xml version="1.0" encoding="utf-8"?>
-<ApplicationPackage SchemaVersion="1.0" AppVersion="1.0.0" AutodeskProduct="Navisworks" Name="Bimwright.Nwd" Description="nwd plug-in (Navis-mcp build) for Autodesk Navisworks Manage 2027" ProductCode="{9B3F7B2D-1C4E-4D5F-9A6B-7E8C9D0F1A2B}">
-  <CompanyDetails Name="Bimwright (built by Navis-mcp)" />
+$components = @()
+foreach ($y in $built) {
+    $nwDir = Join-Path $AutodeskDir "Navisworks Manage $y"
+    $yy = $y % 100
+
+    Step "Add-in NavisCoord (Navisworks Manage $y)"
+    $ncBin = Join-Path $root "addins\NavisCoord.Addin\bin\Release\$y\"
+    Run dotnet build $ncProj -c Release -nologo -v minimal "-p:NavisworksYear=$y" "-p:NavisworksDir=$nwDir" `
+        "-p:OutDir=$ncBin" "-p:IntermediateOutputPath=obj\Release\$y\"
+    $ncOut = Join-Path $out "addins\NavisCoord\$y"
+    New-Item -ItemType Directory -Force (Join-Path $ncOut 'en-US') | Out-Null
+    foreach ($f in 'NavisCoord.dll', 'NavisCoordRibbon.xaml', 'nc_16.png', 'nc_32.png') { Copy-Item (Join-Path $ncBin $f) $ncOut }
+    Copy-Item (Join-Path $ncBin 'en-US\NavisCoordRibbon.xaml') (Join-Path $ncOut 'en-US')
+    Copy-Item (Join-Path $root 'profiles\example-profile.json') $ncOut
+    Copy-Item (Join-Path $root 'third_party\naviscoord\LICENSE') $ncOut
+    Copy-Item (Join-Path $root 'third_party\naviscoord\NOTICE') $ncOut
+
+    Step "Plug-in nwd (Navisworks Manage $y)"
+    $nwProj = Join-Path $root "addins\nwd\plugin-navis$yy\Bimwright.Nwd.Plugin.Navis$yy.csproj"
+    Run dotnet build $nwProj -c Release -nologo -v minimal "-p:NavisworksInstallDir=$nwDir"
+    $nwBin = Join-Path $root "addins\nwd\plugin-navis$yy\bin\Release\net48"
+    New-Item -ItemType Directory -Force (Join-Path $bundle "Contents\$y") | Out-Null
+    Get-ChildItem $nwBin -File | Where-Object { $_.Extension -in '.dll', '.pdb' } | Copy-Item -Destination (Join-Path $bundle "Contents\$y")
+    $components += @"
   <Components>
-    <RuntimeRequirements OS="Win64" Platform="NAVMAN" SeriesMin="Nw24" SeriesMax="Nw24" />
-    <ComponentEntry AppName="Bimwright.Nwd.Plugin.Navis27" AppType="ManagedPlugin" ModuleName="./Contents/2027/Bimwright.Nwd.Plugin.Navis27.dll" />
+    <RuntimeRequirements OS="Win64" Platform="NAVMAN" SeriesMin="$($series[$y])" SeriesMax="$($series[$y])" />
+    <ComponentEntry AppName="Bimwright.Nwd.Plugin.Navis$yy" AppType="ManagedPlugin" ModuleName="./Contents/$y/Bimwright.Nwd.Plugin.Navis$yy.dll" />
   </Components>
+"@
+}
+@"
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="$version" AutodeskProduct="Navisworks" Name="Bimwright.Nwd" Description="nwd plug-in (Navis-mcp build) for Autodesk Navisworks Manage $($built -join ', ')" ProductCode="{9B3F7B2D-1C4E-4D5F-9A6B-7E8C9D0F1A2B}">
+  <CompanyDetails Name="Bimwright (built by Navis-mcp)" />
+$($components -join "`n")
 </ApplicationPackage>
-'@ | Set-Content -Encoding UTF8 (Join-Path $bundle 'PackageContents.xml')
+"@ | Set-Content -Encoding UTF8 (Join-Path $bundle 'PackageContents.xml')
 Copy-Item (Join-Path $root 'third_party\nwd-mcp\LICENSE') $bundle
 
 Step 'Instalador, licenças e README'
