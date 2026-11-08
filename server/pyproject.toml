@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "navis-mcp"
+version = "1.0.0"
+description = "One MCP server for Autodesk Navisworks Manage: NavisCoord clash coordination (navis_*) + a Python port of nwd-mcp (nwd_*)"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["navisworks", "bim", "clash-detection", "coordination", "mcp"]
+dependencies = [
+    "mcp>=1.14,<3",
+    "reportlab>=4.0.4,<6",
+    "pillow>=10.0,<13",
+]
+
+[project.scripts]
+navis-mcp = "naviscoord.mcp_server:main"
+naviscoord = "naviscoord.__main__:main"
+
+[tool.setuptools]
+packages = [
+    "naviscoord",
+    "naviscoord.analysis",
+    "naviscoord.profiles",
+    "naviscoord.nwd",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+naviscoord = ["profiles/*.json"]
+"naviscoord.profiles" = ["*.json"]

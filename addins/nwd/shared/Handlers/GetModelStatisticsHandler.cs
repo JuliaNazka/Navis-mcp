@@ -1,0 +1,43 @@
+#if NAVIS2022 || NAVIS2023 || NAVIS2024 || NAVIS2025 || NAVIS2026 || NAVIS2027
+using Bimwright.Nwd.Shared.Infrastructure;
+using Newtonsoft.Json.Linq;
+using NW = Autodesk.Navisworks.Api;
+
+namespace Bimwright.Nwd.Shared.Handlers;
+
+public sealed class GetModelStatisticsHandler : INwdCommand
+{
+    public string Name => "get_model_statistics";
+    public bool IsReadOnly => true;
+
+    public NwdCommandResult Execute(NwdCommandContext ctx, JObject p)
+    {
+        var meta = new NwdResponseMeta { TargetId = ctx.TargetId, NavisworksYear = ctx.NavisworksYear };
+        var doc = NW.Application.ActiveDocument;
+        if (doc is null)
+            return NwdCommandResult.Fail(System.Guid.Empty, "NO_DOCUMENT", "no active Navisworks document", meta);
+
+        long itemCount = 0;
+        var complete = true;
+        foreach (NW.Model model in doc.Models)
+        {
+            if (model.RootItem == null) continue;
+            foreach (NW.ModelItem _ in model.RootItem.DescendantsAndSelf)
+            {
+                // Check the clock every 4096 items; a federated model can have millions.
+                if ((++itemCount & 0xFFF) == 0 && ctx.PastDeadline) { complete = false; break; }
+            }
+            if (!complete) break;
+        }
+
+        var data = new JObject
+        {
+            ["item_count"] = itemCount,
+            ["item_count_complete"] = complete,
+            ["model_count"] = doc.Models.Count,
+            ["current_selection_count"] = doc.CurrentSelection.SelectedItems.Count
+        };
+        return NwdCommandResult.Success(System.Guid.Empty, data, meta);
+    }
+}
+#endif

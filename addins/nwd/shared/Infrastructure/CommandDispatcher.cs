@@ -1,0 +1,56 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Bimwright.Nwd.Shared.Security;
+
+namespace Bimwright.Nwd.Shared.Infrastructure;
+
+public sealed class CommandDispatcher
+{
+    private readonly IReadOnlyDictionary<string, INwdCommand> _commands;
+    private readonly int _maxResponseBytes;
+    public CommandDispatcher(IReadOnlyDictionary<string, INwdCommand> commands, int maxResponseBytes)
+    { _commands = commands; _maxResponseBytes = maxResponseBytes; }
+
+    public NwdCommandResult Dispatch(NwdCommandContext ctx, NwdCommandEnvelope env)
+    {
+        var started = Stopwatch.StartNew();
+        var meta = new NwdResponseMeta { TargetId = ctx.TargetId, NavisworksYear = ctx.NavisworksYear };
+        if (!_commands.TryGetValue(env.Command, out var cmd))
+            return NwdCommandResult.Fail(env.Id, "INVALID_ARGUMENT", $"unknown command: {env.Command}", meta);
+        if (!cmd.IsReadOnly && ctx.ReadOnly)
+            return NwdCommandResult.Fail(env.Id, "READ_ONLY", $"{env.Command} is a write command and the server is read-only", meta);
+        if (env.Command == "send_code" && !ctx.EnableSendCode)
+            return NwdCommandResult.Fail(env.Id, "SEND_CODE_DISABLED", "send_code is disabled in this Navisworks session. Leave BIMWRIGHT_NWD_PLUGIN_ENABLE_SEND_CODE unset, or set it to 1.", meta);
+
+        try
+        {
+            var result = cmd.Execute(ctx, env.Params ?? new JObject());
+            Normalize(env, ctx, result, started);
+            var serialized = JsonConvert.SerializeObject(result.Data);
+            if (!ResponseSizeGuard.Check(serialized, _maxResponseBytes, out var sizeError))
+            {
+                var message = cmd.IsReadOnly
+                    ? sizeError!.Message
+                    : sizeError!.Message + " The command already ran; do not blindly retry a mutation.";
+                return NwdCommandResult.Fail(env.Id, sizeError!.Code, message, result.Meta);
+            }
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return NwdCommandResult.Fail(env.Id, "API_ERROR", ErrorSanitizer.Sanitize(ex), meta);
+        }
+    }
+
+    private static void Normalize(NwdCommandEnvelope env, NwdCommandContext ctx, NwdCommandResult result, Stopwatch started)
+    {
+        result.Id = env.Id;
+        result.Meta.TargetId ??= ctx.TargetId;
+        result.Meta.NavisworksYear ??= ctx.NavisworksYear == 0 ? null : ctx.NavisworksYear;
+        result.Meta.DurationMs = started.ElapsedMilliseconds;
+    }
+}
