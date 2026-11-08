@@ -2,6 +2,16 @@
 
 Navis-mcp junta dois projetos open-source num único servidor MCP. Cada um continua sob a própria licença.
 
+## Qual licença vale para cada parte
+
+| Parte | Licença |
+|---|---|
+| Código escrito para o Navis-mcp: `server/naviscoord/unified.py`, o port em `server/naviscoord/nwd/`, `addins/NavisCoord.Addin/ClashCompat.cs`, scripts de build/instalação/teste e documentação | MIT, © 2026 Julia Nazka ([`LICENSE`](LICENSE)) |
+| NavisCoord: `server/naviscoord/` (menos `nwd/` e `unified.py`), `addins/NavisCoord.Addin/`, `profiles/` | MIT, © 2026 Horizun Group |
+| nwd-mcp: `addins/nwd/` e o código do servidor portado para `server/naviscoord/nwd/` | Apache-2.0, © 2026 Khoa Le |
+
+O `LICENSE` da raiz não substitui as licenças originais, que valem para as partes que vieram de cada projeto.
+
 ## NavisCoord — MIT
 
 - Origem: https://github.com/HorizunGroup/naviscoord-mcp, tag `v1.1.2` (commit `2f3681b`)

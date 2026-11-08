@@ -19,25 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----------------------------------------------------------------------------
-
-This licence covers the Navis-mcp code written for this repository: the
-unified server entry (server/naviscoord/unified.py), the Python port of the
-nwd-mcp server (server/naviscoord/nwd/), the build, install and test scripts,
-and the documentation.
-
-Parts of this repository come from other projects and remain under their own
-licences, which travel with them and are not replaced by the text above:
-
-  - NavisCoord (server/naviscoord/ except nwd/ and unified.py,
-    addins/NavisCoord.Addin/, profiles/)
-    Copyright (c) 2026 Horizun Group - MIT License
-    third_party/naviscoord/LICENSE and third_party/naviscoord/NOTICE
-
-  - nwd-mcp (addins/nwd/, and the server code ported from it into
-    server/naviscoord/nwd/)
-    Copyright 2026 Khoa Le - Apache License 2.0
-    third_party/nwd-mcp/LICENSE
-
-See THIRD_PARTY_NOTICES.md for details and the list of changes.
