@@ -1,97 +1,102 @@
 # Navis-mcp
 
-Um único servidor MCP para o **Autodesk Navisworks Manage 2025 e 2027**. Ele junta, num processo e num executável só:
+A single MCP server for **Autodesk Navisworks Manage 2025 and 2027**. It combines, in one process and one executable:
 
-- **`navis_*`** (do [NavisCoord](https://github.com/HorizunGroup/naviscoord-mcp)), para coordenação e clash: ranking de interferências, grupos, causa raiz, plano de trabalho, relatórios em PDF, snapshots e comparação entre rodadas.
-- **`nwd_*`** (port em Python do [nwd-mcp](https://github.com/bimwright/nwd-mcp)), para consulta geral do modelo: documento, árvore, propriedades, busca, sets e viewpoints.
+- **`navis_*`** (from [NavisCoord](https://github.com/HorizunGroup/naviscoord-mcp)), for coordination and clash detection: clash ranking, grouping, root causes, work plan, PDF reports, snapshots and comparison between rounds.
+- **`nwd_*`** (a Python port of [nwd-mcp](https://github.com/bimwright/nwd-mcp)), for general model queries: document, tree, properties, search, sets and viewpoints.
 
-Funciona com Claude Code, Claude Desktop ou qualquer cliente MCP por stdio.
+Works with Claude Code, Claude Desktop or any MCP client over stdio.
 
-## Como funciona
+*Leia em português: [README.pt-BR.md](README.pt-BR.md)*
+
+<!-- DEMO: put a screenshot or short GIF here (Claude ranking clashes, or the generated PDF report).
+![demo](docs/demo.gif) -->
+
+## How it works
 
 ```
-Cliente MCP ──stdio──► navis-mcp.exe (Python, um processo)
-                         ├─ navis_*  ──HTTP loopback──► add-in NavisCoord ─┐
-                         └─ nwd_*    ──TCP  loopback──► plug-in nwd ───────┴─► Navisworks Manage 2025 / 2027
+MCP client ──stdio──► navis-mcp.exe (Python, one process)
+                        ├─ navis_*  ──HTTP loopback──► NavisCoord add-in ─┐
+                        └─ nwd_*    ──TCP  loopback──► nwd plug-in ───────┴─► Navisworks Manage 2025 / 2027
 ```
 
-O servidor do nwd-mcp, originalmente em C#/.NET 8, foi reescrito em Python dentro do servidor do NavisCoord. Ele fala o mesmo protocolo com o mesmo plug-in. Os dois add-ins continuam em C# e rodam dentro do Navisworks.
+The nwd-mcp server, originally in C#/.NET 8, was rewritten in Python inside the NavisCoord server. It speaks the same protocol to the same plug-in. Both add-ins remain in C# and run inside Navisworks.
 
-## Modo leitura (padrão)
+## Read-only mode (default)
 
-O servidor sobe **somente leitura**, e uma chave só vale para as duas partes:
+The server starts **read-only**, and a single switch covers both parts:
 
-- o NavisCoord recusa qualquer rota de escrita;
-- `navis_save`, `navis_save_as`, `navis_close_document` e `navis_exit` nem aparecem;
-- as ferramentas `nwd_*` de escrita não são registradas (`nwd_send_code`, abrir ou importar arquivo, ocultar, viewpoints, ToolBaker).
+- NavisCoord refuses any write route;
+- `navis_save`, `navis_save_as`, `navis_close_document` and `navis_exit` are not even exposed;
+- the `nwd_*` write tools are not registered (`nwd_send_code`, opening or importing a file, hiding, viewpoints, ToolBaker).
 
-No modo leitura ficam 70 ferramentas: 49 `navis_*` e 21 `nwd_*`. Para liberar a escrita, use `--allow-write` ou `NAVIS_MCP_READ_ONLY=0`.
+Read-only mode exposes 70 tools: 49 `navis_*` and 21 `nwd_*`. To enable writing, use `--allow-write` or `NAVIS_MCP_READ_ONLY=0`.
 
-## Instalar
+## Install
 
-Com o Navisworks **fechado**:
+With Navisworks **closed**:
 
 ```powershell
-# a partir do ZIP do release ou da pasta dist\Navis-mcp
+# from the release ZIP or the dist\Navis-mcp folder
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -RegisterClaudeCode
 ```
 
-Isso instala:
+This installs:
 
-| O quê | Onde |
+| What | Where |
 |---|---|
-| add-in NavisCoord | `%APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle` (2025 e 2027; o NW 2027 não carrega mais add-ins da pasta `Plugins` por usuário) |
-| plug-in nwd | `%APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle` |
-| servidor MCP | `%LOCALAPPDATA%\Navis-mcp\server\navis-mcp.exe` |
+| NavisCoord add-in | `%APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle` (2025 and 2027; NW 2027 no longer loads add-ins from the per-user `Plugins` folder) |
+| nwd plug-in | `%APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle` |
+| MCP server | `%LOCALAPPDATA%\Navis-mcp\server\navis-mcp.exe` |
 
-Se preferir registrar à mão no Claude Code:
+To register it in Claude Code by hand:
 
 ```powershell
 claude mcp add --transport stdio --scope user navisworks -- "$env:LOCALAPPDATA\Navis-mcp\server\navis-mcp.exe"
 ```
 
-Depois, abra o Navisworks (2025 ou 2027) com o modelo e peça: *"chama navis_health e nwd_health_check e analisa os clashes sem salvar"*.
+Then open Navisworks (2025 or 2027) with the model and ask: *"call navis_health and nwd_health_check, then analyze the clashes without saving"*.
 
-Para desinstalar: `.\uninstall.ps1`.
+To uninstall: `.\uninstall.ps1`.
 
-## Compilar do fonte
+## Build from source
 
-Requisitos: Windows, Navisworks Manage 2025 e/ou 2027 instalado (o build compila cada ano que encontrar; `-Years` escolhe) (as DLLs da API são referenciadas, nunca copiadas), .NET SDK 8+ e [uv](https://docs.astral.sh/uv/).
+Requirements: Windows, Navisworks Manage 2025 and/or 2027 installed (the build compiles every year it finds; `-Years` picks which) (the API DLLs are referenced, never copied), .NET SDK 8+ and [uv](https://docs.astral.sh/uv/).
 
 ```powershell
 .\build.ps1
 ```
 
-O build:
+The build:
 
-1. cria `.venv` com as dependências travadas por hash (`scripts/requirements.lock`);
-2. roda os testes do servidor;
-3. gera `navis-mcp.exe` com o PyInstaller;
-4. compila os dois add-ins para cada ano (2025 e 2027);
-5. testa o exe;
-6. monta `dist\Navis-mcp\` e `dist\Navis-mcp-1.0.0-win-x64.zip` com o sha256.
+1. creates `.venv` with hash-locked dependencies (`scripts/requirements.lock`);
+2. runs the server tests;
+3. builds `navis-mcp.exe` with PyInstaller;
+4. compiles both add-ins for each year (2025 and 2027);
+5. tests the exe;
+6. assembles `dist\Navis-mcp\` and `dist\Navis-mcp-1.0.0-win-x64.zip` with its sha256.
 
-## Testes
+## Tests
 
 ```powershell
-.venv\Scripts\python.exe tests\test_nwd_protocol.py      # nwd_* contra um plug-in falso (TCP + descritor)
+.venv\Scripts\python.exe tests\test_nwd_protocol.py      # nwd_* against a fake plug-in (TCP + descriptor)
 .venv\Scripts\python.exe tests\smoke_stdio.py dist\Navis-mcp\server\navis-mcp\navis-mcp.exe
 ```
 
-## Estrutura
+## Layout
 
 ```
-server/naviscoord/          servidor MCP (NavisCoord) + unified.py
-server/naviscoord/nwd/      port do servidor nwd-mcp (client, tools, budget, bake)
-addins/NavisCoord.Addin/    add-in NavisCoord (C#, net48)
-addins/nwd/                 plug-in nwd (C#, net48): shared/ + plugin-navis25/ + plugin-navis27/
-scripts/                    entry do exe e lock de dependências
-tests/                      testes sem Navisworks
-third_party/                licenças originais
+server/naviscoord/          MCP server (NavisCoord) + unified.py
+server/naviscoord/nwd/      port of the nwd-mcp server (client, tools, budget, bake)
+addins/NavisCoord.Addin/    NavisCoord add-in (C#, net48)
+addins/nwd/                 nwd plug-in (C#, net48): shared/ + plugin-navis25/ + plugin-navis27/
+scripts/                    exe entry point and dependency lock
+tests/                      tests that run without Navisworks
+third_party/                original licenses
 ```
 
-## Licença
+## License
 
-O código do Navis-mcp é MIT (© 2026 Julia Nazka); veja o [LICENSE](LICENSE). O NavisCoord é MIT (© Horizun Group) e o nwd-mcp é Apache-2.0 (© Khoa Le), e as licenças deles valem para as partes que vieram de cada um. Detalhes e lista de mudanças em [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Navis-mcp code is MIT (© 2026 Julia Nazka); see [LICENSE](LICENSE). NavisCoord is MIT (© Horizun Group) and nwd-mcp is Apache-2.0 (© Khoa Le); their licenses apply to the parts that came from each. Details and list of changes in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Navis-mcp não tem relação com a Autodesk. Navisworks é marca da Autodesk, Inc.
+Navis-mcp is not affiliated with Autodesk. Navisworks is a trademark of Autodesk, Inc.
