@@ -29,6 +29,34 @@ O servidor sobe **somente leitura**, e uma chave só vale para as duas partes:
 
 No modo leitura ficam 70 ferramentas: 49 `navis_*` e 21 `nwd_*`. Para liberar a escrita, use `--allow-write` ou `NAVIS_MCP_READ_ONLY=0`.
 
+## Modo escrita (`--allow-write`)
+
+Testado ao vivo no Navisworks Manage 2025 e 2027, em cópias de um federado real:
+
+| Tarefa | Ferramentas |
+|---|---|
+| Criar testes de clash | `navis_load_profile("og7")` → `navis_configure` (um conjunto por disciplina + a matriz de testes) |
+| Rodar testes | `navis_run` (todos, em segundo plano; acompanhe com `navis_job_status`) ou `navis_run_tests` |
+| Analisar | `navis_analyze` |
+| Mudar status | `navis_set_status` (Novo / Ativo / Revisado / Aprovado / Resolvido) |
+| Colorir o modelo | `navis_color_by_priority`; desfazer com `navis_reset_appearance` |
+| Salvar o NWD | `navis_save_as` num nome **novo** (próxima revisão, ex.: `-R01.nwd`) |
+| Fechar / sair | `navis_close_document`, `navis_exit` (`require_clean` ou `discard`) |
+| Mexer no modelo (nwd) | ocultar/mostrar, salvar viewpoint, abrir/importar arquivo, ToolBaker |
+
+Toda escrita confere a "huella" do documento (lida em `navis_health`), e a maioria começa em `dry_run=true`: mostra o plano antes de mudar qualquer coisa.
+
+Duas coisas continuam travadas mesmo no modo escrita, cada uma com a sua chave:
+
+- **Sobrescrever** (`--allow-overwrite` / `NAVIS_MCP_ALLOW_OVERWRITE=1`): sem ela, `navis_save` (salvar por cima) fica oculto, `navis_save_as` recusa `overwrite=true` e fechar/sair recusam `disposition="save"`. Rodada nova é revisão nova, nunca arquivo salvo por cima.
+- **Código arbitrário** (`--allow-send-code` / `NAVIS_MCP_SEND_CODE=1`): `nwd_send_code` roda qualquer C# dentro do Navisworks.
+
+No modo escrita ficam 84 ferramentas (52 `navis_*`, 32 `nwd_*`). A cópia pode ser salva na pasta do documento aberto, em `%LOCALAPPDATA%\NavisCoord\exports` ou nas pastas de `NAVISCOORD_OUTPUT_ROOTS` (`navis_output_policy` mostra quais).
+
+### Perfil OG7
+
+`navis_load_profile("og7")` carrega o perfil do projeto (`server/naviscoord/profiles/og7.json`, gerado por `scripts/make_og7_profile.py`): os códigos de disciplina do OG7 (ARQ, EST, HID, ESG, ELE, INC, GAS, ARC) lidos do nome de cada arquivo, as categorias do Revit em português e 19 pares de disciplinas com nomes como `EST X ESG`. Cada conjunto pega toda peça cujo `Item > Source File` contém `-CÓDIGO-`, então funciona no NWD publicado (que abre como um modelo só) e num NWF com os NWC anexados. Os nomes de propriedade são os que o Navisworks mostra em inglês.
+
 ## Instalar
 
 Com o Navisworks **fechado**:
@@ -44,13 +72,15 @@ Isso instala:
 |---|---|
 | add-in NavisCoord | `%APPDATA%\Autodesk\ApplicationPlugins\NavisCoord.bundle` (2025 e 2027; o NW 2027 não carrega mais add-ins da pasta `Plugins` por usuário) |
 | plug-in nwd | `%APPDATA%\Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle` |
-| servidor MCP | `%LOCALAPPDATA%\Navis-mcp\server\navis-mcp.exe` |
+| servidor MCP | `%LOCALAPPDATA%\Navis-mcp\server-1.1.0\navis-mcp.exe` (uma pasta por versão, para um cliente MCP aberto nunca travar a atualização) |
 
-Se preferir registrar à mão no Claude Code:
+Se preferir registrar à mão no Claude Code (acrescente `--allow-write` no fim para o modo escrita):
 
 ```powershell
-claude mcp add --transport stdio --scope user navisworks -- "$env:LOCALAPPDATA\Navis-mcp\server\navis-mcp.exe"
+claude mcp add --transport stdio --scope user navisworks -- "$env:LOCALAPPDATA\Navis-mcp\server-1.1.0\navis-mcp.exe"
 ```
+
+Se o Navisworks estiver aberto e só o servidor mudou, `install.ps1 -ServerOnly` instala só o servidor novo. Depois reinicie o cliente MCP.
 
 Depois, abra o Navisworks (2025 ou 2027) com o modelo e peça: *"chama navis_health e nwd_health_check e analisa os clashes sem salvar"*.
 

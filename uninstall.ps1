@@ -16,7 +16,8 @@ $paths = @(Get-ChildItem (Join-Path $env:APPDATA 'Autodesk') -Directory -Filter 
     ForEach-Object { Join-Path $_.FullName 'Plugins\NavisCoord' })
 $paths += Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\NavisCoord.bundle'
 $paths += Join-Path $env:APPDATA 'Autodesk\ApplicationPlugins\Bimwright.Nwd.bundle'
-$paths += Join-Path $env:LOCALAPPDATA 'Navis-mcp\server'
+$paths += @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Navis-mcp') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -eq 'server' -or $_.Name -like 'server-*' } | ForEach-Object { $_.FullName })
 
 foreach ($p in $paths) {
     if ((Test-Path $p) -and $PSCmdlet.ShouldProcess($p, 'remover')) {

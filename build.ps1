@@ -28,7 +28,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$version = '1.0.0'
+$version = '1.1.0'
 $dist = Join-Path $root 'dist'
 $out = Join-Path $dist 'Navis-mcp'
 $venvPy = Join-Path $root '.venv\Scripts\python.exe'
@@ -61,6 +61,7 @@ if (-not $SkipTests) {
     Step 'Testes do servidor (fonte)'
     Run $venvPy (Join-Path $root 'tests\test_nwd_protocol.py')
     Run $venvPy (Join-Path $root 'tests\smoke_stdio.py') $venvPy -m naviscoord.mcp_server
+    Run $venvPy (Join-Path $root 'tests\smoke_write.py') $venvPy -m naviscoord.mcp_server
 }
 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
@@ -134,12 +135,14 @@ $($ncComponents -join "`n")
 "@ | Set-Content -Encoding UTF8 (Join-Path $ncBundle 'PackageContents.xml')
 
 Step 'Instalador, licenças e README'
-foreach ($f in 'install.ps1', 'uninstall.ps1', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md') { Copy-Item (Join-Path $root $f) $out }
+foreach ($f in 'install.ps1', 'uninstall.ps1', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README.pt-BR.md') { Copy-Item (Join-Path $root $f) $out }
+Set-Content -Encoding ASCII (Join-Path $out 'VERSION') $version
 Copy-Item (Join-Path $root 'third_party') (Join-Path $out 'third_party') -Recurse
 
 if (-not $SkipTests) {
     Step 'Teste do exe compilado'
     Run $venvPy (Join-Path $root 'tests\smoke_stdio.py') (Join-Path $out 'server\navis-mcp\navis-mcp.exe')
+    Run $venvPy (Join-Path $root 'tests\smoke_write.py') (Join-Path $out 'server\navis-mcp\navis-mcp.exe')
 }
 
 Step 'ZIP'

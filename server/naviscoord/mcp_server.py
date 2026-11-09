@@ -2122,16 +2122,24 @@ def navis_color_by_priority(limit: int = 50, expected_document_fingerprint: str 
         buckets.setdefault(issue.priority, []).extend(movable)
 
     applied = []
+    operation_ids: list[str] = []
     for priority, paths in buckets.items():
         unique = sorted(set(paths))
         if not unique:
             continue
-        applied.append({priority: STATE.bridge.color(unique, palette[priority])})
+        # Navis-mcp: the add-in refuses this mutation without the fingerprint.
+        outcome = STATE.bridge.color(unique, palette[priority], expected_document_fingerprint=fingerprint)
+        applied.append({priority: outcome})
+        operation_id = str(outcome.get("appearance_operation_id") or "") if isinstance(outcome, dict) else ""
+        if operation_id:
+            operation_ids.append(operation_id)
+    _APPEARANCE_OPERATIONS.extend(operation_ids)
 
     payload: dict[str, Any] = {
         "applied": applied,
         "document_fingerprint": fingerprint,
         "coloured": "el lado responsable de moverse",
+        "appearance_operation_ids": operation_ids,
     }
     if skipped:
         payload["skipped_by_priority"] = dict(skipped.most_common())
@@ -2162,17 +2170,40 @@ def navis_color_by_priority(limit: int = 50, expected_document_fingerprint: str 
 
 @mcp.tool(annotations=_destructive("Quitar los colores aplicados"))
 @_guard
-def navis_reset_appearance(expected_document_fingerprint: str = "") -> dict[str, Any]:
-    """Quita todos los colores aplicados sobre el modelo.
+def navis_reset_appearance(
+    expected_document_fingerprint: str = "", appearance_operation_id: str = ""
+) -> dict[str, Any]:
+    """Quita los colores que puso navis_color_by_priority, devolviendo los originales.
 
-    Sin argumentos borra TODO override de apariencia del documento, incluidos
-    los que puso una persona a mano. Es la mutación más fácil de disparar por
-    error y la única sin dry_run, así que la huella se comprueba igual.
+    Con `appearance_operation_id` deshace ese coloreado concreto. Sin él deshace
+    todos los coloreados hechos en esta sesión del servidor, del más reciente al
+    más antiguo. Nunca borra los colores que una persona aplicó a mano: el
+    complemento rechaza el reseteo «de todo».
     """
     fingerprint = STATE.require_mutable(expected_document_fingerprint)
-    payload = STATE.bridge.reset_appearance()
-    payload.setdefault("document_fingerprint_before", fingerprint)
-    return payload
+    targets = [appearance_operation_id] if appearance_operation_id.strip() else list(reversed(_APPEARANCE_OPERATIONS))
+    if not targets:
+        return {
+            "error": "nothing_to_reset",
+            "detail": "No hay coloreados de esta sesión para deshacer. Pasa el appearance_operation_id que "
+                      "devolvió navis_color_by_priority.",
+            "document_fingerprint_before": fingerprint,
+        }
+    results = []
+    for operation_id in targets:
+        outcome = STATE.bridge.reset_appearance(
+            appearance_operation_id=operation_id, expected_document_fingerprint=fingerprint
+        )
+        results.append({"appearance_operation_id": operation_id, "result": outcome})
+        refused = isinstance(outcome, dict) and (outcome.get("error") or outcome.get("status") in ("rejected", "failed"))
+        if not refused and operation_id in _APPEARANCE_OPERATIONS:
+            _APPEARANCE_OPERATIONS.remove(operation_id)
+    return {"reset": results, "document_fingerprint_before": fingerprint}
+
+
+#: Navis-mcp: appearance operations applied by navis_color_by_priority in this process,
+#: so navis_reset_appearance can undo exactly those (the add-in refuses a blanket reset).
+_APPEARANCE_OPERATIONS: list[str] = []
 
 
 # --------------------------------------------------------- flujo operativo

@@ -795,15 +795,37 @@ class Bridge:
             _guarded({"viewpoints": viewpoints, "dry_run": dry_run}, fingerprint, idempotency_key),
         )
 
-    def color(self, path_ids: list[str], rgb: tuple[int, int, int], transparency: float = -1.0) -> dict[str, Any]:
+    # Navis-mcp: both routes are mutations in the 1.1.2 add-in (MutationPreflight
+    # refuses them without 'expected_document_fingerprint'), and an empty reset
+    # is refused so it cannot wipe colours somebody else applied. These calls
+    # used to send neither, so colouring and resetting never reached the model.
+    def color(
+        self,
+        path_ids: list[str],
+        rgb: tuple[int, int, int],
+        transparency: float = -1.0,
+        *,
+        expected_document_fingerprint: str = "",
+    ) -> dict[str, Any]:
         r, g, b = rgb
-        return self.call(
-            "appearance/color",
-            {"path_ids": path_ids, "r": r, "g": g, "b": b, "transparency": transparency},
-        )
+        payload: dict[str, Any] = {"path_ids": path_ids, "r": r, "g": g, "b": b, "transparency": transparency}
+        if expected_document_fingerprint:
+            payload["expected_document_fingerprint"] = expected_document_fingerprint
+        return self.call("appearance/color", payload, mutating=True)
 
-    def reset_appearance(self, path_ids: list[str] | None = None) -> dict[str, Any]:
-        return self.call("appearance/reset", {"path_ids": path_ids or []})
+    def reset_appearance(
+        self,
+        path_ids: list[str] | None = None,
+        *,
+        appearance_operation_id: str = "",
+        expected_document_fingerprint: str = "",
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"path_ids": path_ids or []}
+        if appearance_operation_id:
+            payload["appearance_operation_id"] = appearance_operation_id
+        if expected_document_fingerprint:
+            payload["expected_document_fingerprint"] = expected_document_fingerprint
+        return self.call("appearance/reset", payload, mutating=True)
 
     def select(
         self,
